@@ -1,40 +1,39 @@
 import streamlit as st
+import yfinance as yf
 
-# MBTI별 추천 직업 데이터
-mbti_jobs = {
-    "INTJ": ["데이터 과학자 📊", "전략 컨설턴트 🧠", "엔지니어 👷"],
-    "INTP": ["연구원 🔬", "프로그래머 💻", "발명가 🛠️"],
-    "ENTJ": ["CEO 🧑‍💼", "기획자 📈", "경영 컨설턴트 💼"],
-    "ENTP": ["스타트업 창업자 🚀", "마케터 📣", "기획자 💡"],
+st.set_page_config(page_title="미국 주식 상태 분석", layout="centered")
+st.title("📊 미국 주식 상태 분석기")
+st.write("주식 티커를 입력하면 지금이 바닥인지 상투인지 알려줄게요! 😎")
 
-    "INFJ": ["상담사 🧘", "작가 ✍️", "인권운동가 🕊️"],
-    "INFP": ["디자이너 🎨", "예술가 🎭", "심리학자 🧠"],
-    "ENFJ": ["교사 🧑‍🏫", "홍보 담당자 📢", "리더십 코치 🤝"],
-    "ENFP": ["광고 기획자 📺", "배우 🎬", "창작자 🎤"],
+# 사용자 입력
+ticker = st.text_input("🔍 주식 티커(symbol)를 입력하세요 (예: AAPL, TSLA, MSFT)", "AAPL")
 
-    "ISTJ": ["회계사 📒", "공무원 🏛️", "법률 전문가 ⚖️"],
-    "ISFJ": ["간호사 🏥", "교사 📚", "사회복지사 ❤️"],
-    "ESTJ": ["매니저 📋", "군인 🎖️", "현장 감독 🏗️"],
-    "ESFJ": ["행사 기획자 🎉", "간호조무사 💉", "인사 담당자 👥"],
+if ticker:
+    stock = yf.Ticker(ticker)
+    df = stock.history(period="1y")
 
-    "ISTP": ["기술자 🧰", "정비사 🔧", "파일럿 ✈️"],
-    "ISFP": ["플로리스트 🌸", "포토그래퍼 📸", "스타일리스트 👗"],
-    "ESTP": ["영업 사원 💼", "모험가 🧗", "기업가 💵"],
-    "ESFP": ["연예인 🎤", "여행 가이드 🧳", "MC 🎙️"],
-}
+    if df.empty:
+        st.error("❌ 데이터를 불러오지 못했어요. 티커를 다시 확인해주세요.")
+    else:
+        current_price = df["Close"][-1]
+        low_price = df["Low"].min()
+        high_price = df["High"].max()
+        position = (current_price - low_price) / (high_price - low_price + 1e-6) * 100
 
-# Streamlit 앱 UI 구성
-st.set_page_config(page_title="MBTI 직업 추천", layout="centered")
-st.title("🧠 MBTI 기반 직업 추천기")
-st.write("MBTI 성격유형을 선택하면 어울리는 직업을 추천해드려요!")
+        st.markdown(f"### 💰 현재 주가: **${current_price:.2f}**")
+        st.markdown(f"📉 1년 최저가: **${low_price:.2f}**")
+        st.markdown(f"📈 1년 최고가: **${high_price:.2f}**")
+        st.markdown(f"🧭 현재 위치: **{position:.1f}%** (0% = 최저가, 100% = 최고가)")
 
-# MBTI 선택
-mbti_list = list(mbti_jobs.keys())
-selected_mbti = st.selectbox("📌 MBTI 유형을 선택하세요", mbti_list)
+        # 상태 분석
+        if position < 20:
+            st.markdown("🟢 **저점 근처! 바닥일 가능성이 높아요** 🐢")
+            st.success("👍 지금은 **매수 추천** 시점입니다!")
+        elif position > 80:
+            st.markdown("🔴 **고점 근처! 상투일 수 있어요** 🐂")
+            st.warning("⚠️ 지금은 **매도 추천** 시점일 수 있어요.")
+        else:
+            st.markdown("🟡 **중간 구간** 🤔")
+            st.info("👀 조금 더 기다리는 것이 좋을 수도 있어요.")
 
-# 추천 직업 출력
-if selected_mbti:
-    st.subheader(f"🔍 {selected_mbti} 유형에게 어울리는 직업은?")
-    jobs = mbti_jobs[selected_mbti]
-    for job in jobs:
-        st.markdown(f"- {job}")
+        st.caption("※ 단순히 1년 고점/저점을 기준으로 한 참고용 분석입니다.")
