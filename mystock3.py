@@ -1,39 +1,82 @@
 import streamlit as st
 import yfinance as yf
+import plotly.graph_objs as go
+from datetime import datetime, timedelta
 
-st.set_page_config(page_title="미국 주식 상태 분석", layout="centered")
-st.title("📊 미국 주식 상태 분석기")
-st.write("주식 티커를 입력하면 지금이 바닥인지 상투인지 알려줄게요! 😎")
+st.set_page_config(page_title="미국 주식 분석", layout="wide")
 
-# 사용자 입력
-ticker = st.text_input("🔍 주식 티커(symbol)를 입력하세요 (예: AAPL, TSLA, MSFT)", "AAPL")
+st.title("🇺🇸 미국 주식 분석 웹앱")
+st.markdown("주식을 선택하면 차트와 현재 상태를 분석해드려요! 📊")
 
+# 📌 주식 선택
+ticker = st.text_input("티커(symbol)을 입력하세요 (예: AAPL, TSLA, MSFT):", "AAPL")
+
+# 데이터 가져오기
 if ticker:
     stock = yf.Ticker(ticker)
-    df = stock.history(period="1y")
+    
+    # 오늘 날짜
+    today = datetime.today()
+    
+    # 📅 일봉 1년
+    daily_df = stock.history(period="1y", interval="1d")
+    # 📅 주봉 5년
+    weekly_df = stock.history(period="5y", interval="1wk")
 
-    if df.empty:
-        st.error("❌ 데이터를 불러오지 못했어요. 티커를 다시 확인해주세요.")
+    st.subheader("📈 1년간 일봉 차트")
+    fig_daily = go.Figure(data=[go.Candlestick(
+        x=daily_df.index,
+        open=daily_df["Open"],
+        high=daily_df["High"],
+        low=daily_df["Low"],
+        close=daily_df["Close"]
+    )])
+    fig_daily.update_layout(xaxis_title="날짜", yaxis_title="주가", height=400)
+    st.plotly_chart(fig_daily, use_container_width=True)
+
+    st.subheader("📉 5년간 주봉 차트")
+    fig_weekly = go.Figure(data=[go.Candlestick(
+        x=weekly_df.index,
+        open=weekly_df["Open"],
+        high=weekly_df["High"],
+        low=weekly_df["Low"],
+        close=weekly_df["Close"]
+    )])
+    fig_weekly.update_layout(xaxis_title="날짜", yaxis_title="주가", height=400)
+    st.plotly_chart(fig_weekly, use_container_width=True)
+
+    # 📊 간단한 상태 판단
+    current_price = daily_df["Close"][-1]
+    low_1y = daily_df["Low"].min()
+    high_1y = daily_df["High"].max()
+
+    st.subheader("🔍 현재 상태 분석")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("현재 주가", f"${current_price:.2f}")
+    with col2:
+        percent = (current_price - low_1y) / (high_1y - low_1y + 1e-6) * 100
+        st.metric("1년 등락 위치", f"{percent:.1f}% 위치")
+
+    # 상태 분석 결과
+    status = ""
+    emoji = ""
+    advice = ""
+
+    if percent < 20:
+        status = "📉 저점 근처 (바닥일 가능성 있음)"
+        emoji = "🟢"
+        advice = "지금은 **매수 추천** 👍"
+    elif percent > 80:
+        status = "📈 고점 근처 (상투일 가능성 있음)"
+        emoji = "🔴"
+        advice = "지금은 **매도 추천** ⚠️"
     else:
-        current_price = df["Close"][-1]
-        low_price = df["Low"].min()
-        high_price = df["High"].max()
-        position = (current_price - low_price) / (high_price - low_price + 1e-6) * 100
+        status = "🤔 중간 위치 (관망)"
+        emoji = "🟡"
+        advice = "지켜보는 것을 추천합니다 👀"
 
-        st.markdown(f"### 💰 현재 주가: **${current_price:.2f}**")
-        st.markdown(f"📉 1년 최저가: **${low_price:.2f}**")
-        st.markdown(f"📈 1년 최고가: **${high_price:.2f}**")
-        st.markdown(f"🧭 현재 위치: **{position:.1f}%** (0% = 최저가, 100% = 최고가)")
+    st.markdown(f"### {emoji} {status}")
+    st.markdown(f"**💡 조언:** {advice}")
 
-        # 상태 분석
-        if position < 20:
-            st.markdown("🟢 **저점 근처! 바닥일 가능성이 높아요** 🐢")
-            st.success("👍 지금은 **매수 추천** 시점입니다!")
-        elif position > 80:
-            st.markdown("🔴 **고점 근처! 상투일 수 있어요** 🐂")
-            st.warning("⚠️ 지금은 **매도 추천** 시점일 수 있어요.")
-        else:
-            st.markdown("🟡 **중간 구간** 🤔")
-            st.info("👀 조금 더 기다리는 것이 좋을 수도 있어요.")
-
-        st.caption("※ 단순히 1년 고점/저점을 기준으로 한 참고용 분석입니다.")
